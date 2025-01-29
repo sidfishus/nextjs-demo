@@ -75,7 +75,7 @@ export const Home = (props: HomeProps) => {
             </ResponsiveContainer>
 
             <WindLineChart windSpeedPerHourOver24HourPeriod={weather.windSpeedPerHourOver24HourPeriod}
-                           height={400} minY={2} width={350}
+                           height={400} minY={2} width={350} numberOfYTicks={4}
             />
         </div>
     );
@@ -106,36 +106,61 @@ type WindLineChartProps = {
     minY: number;
     height: number;
     width: number;
+    numberOfYTicks: number;
 }
 
 const WindLineChart = (props: WindLineChartProps) => {
 
-    const { windSpeedPerHourOver24HourPeriod, minY, height, width } = props;
+    const { windSpeedPerHourOver24HourPeriod, minY, height, width, numberOfYTicks } = props;
+
+    const xIncrement=width / 25;
 
     const maxWind=windSpeedPerHourOver24HourPeriod.reduce((prev,cur) => {
         return cur > prev ? cur : prev;
     });
 
     const yRange = maxWind - minY;
-    const yRangeWith10Percent=yRange * 1.1;
 
-    const yIncrement=width / 25;
+    let yTickerHeight = yRange / numberOfYTicks;
+
+    if(yTickerHeight < 10) {
+        // Round to the nearest 0.5
+
+        const dividedByPoint5=yTickerHeight/0.5;
+        if(Math.ceil(dividedByPoint5) == dividedByPoint5)
+            yTickerHeight+=0.5;
+        else
+            yTickerHeight = Math.floor(yTickerHeight) + 0.5;//sidtodo this is wrong. yTickerHeight = 2.8. range = 11.3
+    }
+    else if(yTickerHeight < 100) {
+        // Round to the nearest 5
+
+        const modulo5=Math.floor(yTickerHeight)%5;
+        if(modulo5==0)
+            yTickerHeight=Math.floor(yTickerHeight)+5;
+        else
+            yTickerHeight=Math.floor(yTickerHeight)+ modulo5;
+    }
+
+    const yTotalHeight=yTickerHeight*numberOfYTicks;
+
+    console.log(yTickerHeight);
+    console.log(yTotalHeight);
 
     const coords:Point[]=[];
     windSpeedPerHourOver24HourPeriod.forEach((iterWind, i) => {
 
-        const x =(i+1)*yIncrement; // Time
+        const x =(i+1)*xIncrement; // Time
 
         const y = iterWind <= minY
             ? minY
-            : ((iterWind - minY) / yRangeWith10Percent)*height;
+            : ((iterWind - minY) / yTotalHeight)*height;
 
         coords.push({
             x: x,
             y: y
         });
     });
-
 
 
     return (
@@ -154,6 +179,9 @@ const WindLineChart = (props: WindLineChartProps) => {
             </div>
             <div>
                 {WindChartXAxis(coords, height)}
+            </div>
+            <div>
+                {XGridLines(coords, height)}
             </div>
         </div>
     );
@@ -181,13 +209,13 @@ const WindChartCrossList = (coords: Point[]) => {
                          bottom: `calc(${iterCoord.y}px - 2px)`,
                      }}></div>*/}
 
-                <div className={`absolute bg-blue-500 h-[1] rotate-45`}
+                <div className={`absolute bg-blue-500 h-[1] rotate-45 z-40`}
                      style={{
                          left: left + "px",
                          bottom: `calc(${iterCoord.y}px - ${crossThickness / 2}px)`,
                          width: crossLength
                      }}></div>
-                <div className={`absolute bg-blue-500 h-[1] -rotate-45`}
+                <div className={`absolute bg-blue-500 h-[1] -rotate-45 z-40`}
                      style={{
                          left: left + "px",
                          bottom: `calc(${iterCoord.y}px - ${crossThickness / 2}px)`,
@@ -223,7 +251,7 @@ const WindChartConnectingLines = (coords: Point[]) => {
 
             lines.push((
                 <div
-                    className={"p-0 m-0 bg-amber-500 leading-[1] absolute"}
+                    className={"p-0 m-0 bg-amber-500 leading-[1] absolute z-10"}
                     style={{height: thickness + "px", left: cx + "px", bottom:cy + "px",width:length + "px",transform:"rotate(" + -angle + "deg)"}}
                 />
             ));
@@ -249,4 +277,21 @@ const WindChartXAxis = (coords: Point[], chartHeight: number) => {
     });
 
     return timesList;
+}
+
+const XGridLines = (coords: Point[], chartHeight: number) => {
+
+    const lines: ReactElement[]=[];
+
+    coords.forEach((iterCoord, i) => {
+
+        lines.push((
+            <hr key={i} className={"absolute z-0"}
+                 style={{left: `calc(${iterCoord.x}px - 1px)`, height: chartHeight,
+                 borderWidth: "1px", borderStyle: "dashed", borderColor: "rgba(127,127,127,0.15)"}}>
+            </hr>
+        ));
+    })
+
+    return lines;
 }
