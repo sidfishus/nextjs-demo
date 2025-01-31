@@ -1,24 +1,97 @@
 "use client";
 
 import {WeatherResponse} from "@/app/model/WeatherResponse";
-import {Fragment, ReactElement, ReactNode, use} from "react";
-import {Area, AreaChart, CartesianGrid, Label, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis} from "recharts";
+import {ChangeEvent, Fragment, ReactElement, ReactNode, use, useState} from "react";
+import {Area, AreaChart, CartesianGrid, Label, ResponsiveContainer, XAxis, YAxis} from "recharts";
+import {ResettableTimer} from "@sidfishus/cslib";
 
 export type HomeProps = {
-    weatherPromise: Promise<WeatherResponse>
+    weatherPromise: Promise<WeatherResponse>;
+    latitude: number;
+    longitude: number;
 };
 
 export const Home = (props: HomeProps) => {
 
-    const { weatherPromise } = props;
+    const { longitude, latitude }=props;
+
+    const [weatherPromise, setWeatherPromise] = useState<Promise<WeatherResponse>>(props.weatherPromise);
+
+    const weatherUpdateDelay=ResettableTimer();
+
+    const loadWeather = (latitude: number, longitude: number) => {
+
+        weatherUpdateDelay(()=>{
+            console.log("loading: " + longitude + ", latitude: " + latitude);
+
+            //sidtodo check response
+            setWeatherPromise(fetch(`api/weather?latitude=${latitude}&longitude=${longitude}`).then(async res => {
+
+                if(res.status === 200)
+                    return res.json();
+
+                //sidtodo an error
+                return null;
+            }));
+        },500);
+    }
+
+    return (
+        <Weather longitude={longitude} latitude={latitude} weatherPromise={weatherPromise} loadWeather={loadWeather} />
+    );
+}
+
+export type WeatherProps = {
+    weatherPromise: Promise<WeatherResponse>;
+    latitude: number;
+    longitude: number;
+    loadWeather: (latitude: number, longitude: number)=> void;
+};
+
+export const Weather = (props: WeatherProps) => {
+
+    const {weatherPromise,loadWeather} = props;
 
     const weather = use(weatherPromise);
 
     const temperatureData=ConvertTemperatureToChartData(weather.temperaturePerHourOver24HourPeriod);
-    const windSpeedData=ConvertWindSpeedToChartData(weather.windSpeedPerHourOver24HourPeriod);
+
+    const [latitude,setLatitude]=useState<string>(props.latitude.toString());
+    const [longitude,setLongitude]=useState<string>(props.longitude.toString());
+
+
+
+    //sidtodo loading.
+
+    const onLatitudeChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setLatitude(event.target.value);
+        const parsedLatitude=parseFloat(event.target.value);
+        const parsedLongitude=parseFloat(longitude);
+        if(!isNaN(parsedLatitude) && !isNaN(parsedLongitude))
+            loadWeather(parsedLatitude,parsedLongitude);
+    }
+
+    const onLongitudeChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setLongitude(event.target.value);
+        const parsedLongitude=parseFloat(event.target.value);
+        const parsedLatitude=parseFloat(latitude);
+        if(!isNaN(parsedLatitude) && !isNaN(parsedLongitude))
+            loadWeather(parsedLatitude,parsedLongitude);
+    }
 
     return (
         <div>
+            <div>Show the weather at the following location:</div>
+            <div className="mb-[3]">
+                <div className={"inline-block w-[100]"}>Latitude</div>
+                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLatitudeChange} value={latitude}/>
+            </div>
+            <div>
+                <div className={"inline-block w-[100]"}>Longitude</div>
+                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLongitudeChange} value={longitude}/>
+            </div>
+            <br />
+
             <ResponsiveContainer width="100%" height={300}>
                 <AreaChart
                     height={200}
@@ -42,41 +115,15 @@ export const Home = (props: HomeProps) => {
                     <YAxis>
                         <Label value="Temperature (C)" offset={25} position="insideBottomLeft" angle={-90}/>
                     </YAxis>
-                    <Area type="monotone" dataKey="temperatureInCelsius" stroke="none" fill={`url(#color1)`} />
+                    <Area type="monotone" dataKey="temperatureInCelsius" stroke="none" fill={`url(#color1)`}/>
                 </AreaChart>
             </ResponsiveContainer>
 
-            <ResponsiveContainer width="100%" height={300}>
-                <AreaChart
-                    width={500}
-                    height={200}
-                    data={windSpeedData}
-                    syncId="anyId"
-                    margin={{
-                        bottom: 20
-                    }}
-                >
-                    <defs>
-                        <linearGradient id={`color1`} x1="0" y1="0" x2="0" y2="1">
-                            <stop stopColor={"red"} stopOpacity={1}></stop>
-                            <stop offset="33%" stopColor={"orange"} stopOpacity={1}></stop>
-                            <stop offset="66%" stopColor={"blue"} stopOpacity={1}></stop>
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3"/>
-                    <XAxis dataKey="hour">
-                        <Label value="Time (24 hour)" offset={-10} position="insideBottom"/>
-                    </XAxis>
-                    <YAxis>
-                        <Label value="Temperature (C)" offset={25} position="insideBottomLeft" angle={-90}/>
-                    </YAxis>
-                    <Area type="monotone" dataKey="windInKmh" stroke="none" fill={`url(#color1)`} />
-                </AreaChart>
-            </ResponsiveContainer>
-
-            <WindLineChart windSpeedPerHourOver24HourPeriod={weather.windSpeedPerHourOver24HourPeriod}
-                           height={400} minY={2} width={350} numberOfYTicks={4}
-            />
+            <div className={"ml-[20]"}>
+                <WindLineChart windSpeedPerHourOver24HourPeriod={weather.windSpeedPerHourOver24HourPeriod}
+                               height={400} minY={0} width={340} numberOfYTicks={4}
+                />
+            </div>
         </div>
     );
 }
@@ -87,16 +134,6 @@ const ConvertTemperatureToChartData = (temperaturePerHourOver24HourPeriod: numbe
         return {
             hour: i,
             temperatureInCelsius: iterTemp,
-        };
-    });
-}
-
-const ConvertWindSpeedToChartData = (windSpeedPerHourOver24HourPeriod: number[]) => {
-
-    return windSpeedPerHourOver24HourPeriod.map((iterTemp, i) => {
-        return {
-            hour: i,
-            windInKmh: iterTemp,
         };
     });
 }
@@ -115,37 +152,9 @@ const WindLineChart = (props: WindLineChartProps) => {
 
     const xIncrement=width / 25;
 
-    const maxWind=windSpeedPerHourOver24HourPeriod.reduce((prev,cur) => {
-        return cur > prev ? cur : prev;
-    });
-
-    const yRange = maxWind - minY;
-
-    let yTickerHeight = yRange / numberOfYTicks;
-
-    if(yTickerHeight < 10) {
-        // Round to the nearest 0.5
-
-        const dividedByPoint5=yTickerHeight/0.5;
-        if(Math.ceil(dividedByPoint5) == dividedByPoint5)
-            yTickerHeight+=0.5;
-        else
-            yTickerHeight = Math.floor(yTickerHeight) + 0.5;//sidtodo this is wrong. yTickerHeight = 2.8. range = 11.3
-    }
-    else if(yTickerHeight < 100) {
-        // Round to the nearest 5
-
-        const modulo5=Math.floor(yTickerHeight)%5;
-        if(modulo5==0)
-            yTickerHeight=Math.floor(yTickerHeight)+5;
-        else
-            yTickerHeight=Math.floor(yTickerHeight)+ modulo5;
-    }
+    const yTickerHeight = CalculateYTickerHeight(windSpeedPerHourOver24HourPeriod, minY, numberOfYTicks);
 
     const yTotalHeight=yTickerHeight*numberOfYTicks;
-
-    console.log(yTickerHeight);
-    console.log(yTotalHeight);
 
     const coords:Point[]=[];
     windSpeedPerHourOver24HourPeriod.forEach((iterWind, i) => {
@@ -165,26 +174,74 @@ const WindLineChart = (props: WindLineChartProps) => {
 
     return (
         <div className={"w-full h-[400] relative"}>
-            <div>
+            <div id={"outline"}>
                 <div className={"absolute h-[2] bg-red-500"} style={{width: width + "px", top: height + "px"}}></div>
                 <div className={"absolute w-[2] bg-red-500"} style={{height: height + "px"}}/>
                 <div className={"absolute w-[2] bg-red-500"}
                      style={{height: height + "px", left: `calc(${width}px - 2px)`}}/>
             </div>
-            <div>
+            <div id={"cross-list"}>
                 {WindChartCrossList(coords)}
             </div>
-            <div>
+            <div id={"cross-connecting-lines"}>
                 {WindChartConnectingLines(coords)}
             </div>
-            <div>
+            <div id={"x-axis"}>
                 {WindChartXAxis(coords, height)}
             </div>
-            <div>
+            <div id={"x-axis-vertical-lines"}>
                 {XGridLines(coords, height)}
             </div>
+            <div id={"y-axis-and-lines"}>
+                {WindChartYAxisAndLines(height, yTickerHeight, numberOfYTicks, minY, width)}
+            </div>
+            {XAxisText()}
+            {YAxisText(height)}
         </div>
     );
+}
+
+const CalculateYTickerHeight = (windSpeedPerHourOver24HourPeriod: number[], minY: number, numberOfYTicks: number) => {
+
+    const maxWind=windSpeedPerHourOver24HourPeriod.reduce((prev,cur) => {
+        return cur > prev ? cur : prev;
+    });
+
+    const yRange = maxWind - minY;
+
+    // Try and work out a reasonable ticker height.
+    // This is actually quite tricky and the method below works reasonably well, but it could certainly be improved.
+    let yTickerHeight = yRange / numberOfYTicks;
+
+    if(yTickerHeight < 10) {
+        // Round to the nearest 0.5
+
+        const dividedByPoint5=yTickerHeight/0.5;
+        if(Math.ceil(dividedByPoint5) == dividedByPoint5)
+            yTickerHeight+=0.5;
+        else {
+
+            let num=0;
+            for(let i=0;i<20;++i) {
+                num+=0.5;
+                if(num > yTickerHeight) {
+                    yTickerHeight = num;
+                    break;
+                }
+            }
+        }
+    }
+    else if(yTickerHeight < 100) {
+        // Round to the nearest 5
+
+        const modulo5=Math.floor(yTickerHeight)%5;
+        if(modulo5==0)
+            yTickerHeight=Math.floor(yTickerHeight)+5;
+        else
+            yTickerHeight=Math.floor(yTickerHeight)+ modulo5;
+    }
+
+    return yTickerHeight;
 }
 
 type Point = {
@@ -250,7 +307,7 @@ const WindChartConnectingLines = (coords: Point[]) => {
             const angle = Math.atan2((y1-y2),(x1-x2))*(180/Math.PI);
 
             lines.push((
-                <div
+                <div key={i}
                     className={"p-0 m-0 bg-amber-500 leading-[1] absolute z-10"}
                     style={{height: thickness + "px", left: cx + "px", bottom:cy + "px",width:length + "px",transform:"rotate(" + -angle + "deg)"}}
                 />
@@ -294,4 +351,58 @@ const XGridLines = (coords: Point[], chartHeight: number) => {
     })
 
     return lines;
+}
+
+const WindChartYAxisAndLines = (height: number, yTickerHeight: number, numberOfYTicks: number, minY: number,
+                                width: number) => {
+
+    const lines=[];
+
+    for(let i=1;i<=numberOfYTicks;i++){
+
+        const percentageUp=i/numberOfYTicks;
+
+        lines.push((
+            <Fragment key={i}>
+                <div className={"absolute w-[4] h-[1] bg-red-600"} style={{
+                    left: "-4px", bottom: `calc(${percentageUp * height}px - 1px)`
+                }}>
+                    <div className={"-mt-[7] -ml-[16] flex justify-center left-2"}
+                         style={{fontSize: "10px", textAlign: "center"}}
+                    >
+                        {(i * yTickerHeight) + minY}
+                    </div>
+                </div>
+                <hr className={"absolute z-0"} style={{
+                    bottom: `calc(${percentageUp * height}px - 1px)`,
+                    width: `${width}px`,borderWidth: "1px", borderStyle: "dashed", borderColor: "rgba(127,127,127,0.15)"
+                }}>
+                </hr>
+            </Fragment>
+        ));
+    }
+
+    return lines;
+}
+
+const XAxisText = () => {
+
+    return (
+        <div id={"x-axis-text"} className={"absolute flex justify-center -bottom-[40] left-[125]"} style={{
+            textAlign: "center"
+        }}>
+            Time (24 hour)
+        </div>
+    );
+}
+
+const YAxisText = (height: number) => {
+
+    return (
+        <div id={"y-axis-text"} className={"absolute -rotate-90 flex justify-center -left-[100]"} style={{
+            top: `${height / 2}px`
+        }}>
+            Wind Speed (KM/H)
+        </div>
+    );
 }
