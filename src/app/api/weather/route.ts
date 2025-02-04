@@ -1,13 +1,11 @@
 
-import type { NextApiRequest, NextApiResponse } from 'next'
-import type { WeatherResponse } from "@/app/model/WeatherResponse";
-import {GetWeather} from "@/app/weather-functions";
 
+//sidtodo use a server action
 
 //https://nextjs.org/docs/pages/building-your-application/routing/api-routes
-export async function GET(
-    req: NextApiRequest
-) {
+export async function GET() {
+    //sidtodo
+    /*
     //sidtodo validate
     const longitude=parseFloat(req.query["longitude"]! as string);
     const latitude=parseFloat(req.query["latitude"]! as string);
@@ -22,5 +20,5 @@ export async function GET(
     catch(err) {
         //sidtodo??
         return Response.json({},{status: 422, statusText: "Invalid longitude or latitude."})
-    }
+    }*/
 }
