@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased m-[16] md:m-[32] lg:m-[48]`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased m-[16px] md:m-[32px] lg:m-[48px]`}
       >
         <MenuServer />
         {children}

@@ -1,74 +1,49 @@
 "use client";
 
 import {WeatherResponse} from "@/app/model/WeatherResponse";
-import {ChangeEvent, Fragment, ReactElement, ReactNode, use, useState} from "react";
+import {ChangeEvent, Fragment, ReactElement, ReactNode, useRef, useState} from "react";
 import {Area, AreaChart, CartesianGrid, Label, ResponsiveContainer, XAxis, YAxis} from "recharts";
+import {useServerAction} from "@/app/hooks/useServerAction";
+import {GetWeather} from "@/app/actions";
 import {ResettableTimer} from "@sidfishus/cslib";
 
 export type HomeProps = {
-    weatherPromise: Promise<WeatherResponse>;
     latitude: number;
     longitude: number;
+    weather: WeatherResponse;
 };
 
-export const Home = (props: HomeProps) => {
+export const HomeClient = (props: HomeProps) => {
 
-    const { longitude, latitude }=props;
-
-    const [weatherPromise, setWeatherPromise] = useState<Promise<WeatherResponse>>(props.weatherPromise);
-
-    const weatherUpdateDelay=ResettableTimer();
-
-    const loadWeather = (latitude: number, longitude: number) => {
-
-        weatherUpdateDelay(()=>{
-            console.log("loading: " + longitude + ", latitude: " + latitude);
-
-            //sidtodo check response
-            setWeatherPromise(fetch(`api/weather?latitude=${latitude}&longitude=${longitude}`).then(async res => {
-
-                if(res.status === 200)
-                    return res.json();
-
-                //sidtodo an error
-                return null;
-            }));
-        },500);
-    }
-
-    return (
-        <Weather longitude={longitude} latitude={latitude} weatherPromise={weatherPromise} loadWeather={loadWeather} />
-    );
-}
-
-export type WeatherProps = {
-    weatherPromise: Promise<WeatherResponse>;
-    latitude: number;
-    longitude: number;
-    loadWeather: (latitude: number, longitude: number)=> void;
-};
-
-export const Weather = (props: WeatherProps) => {
-
-    const {weatherPromise,loadWeather} = props;
-
-    const weather = use(weatherPromise);
-
-    const temperatureData=ConvertTemperatureToChartData(weather.temperaturePerHourOver24HourPeriod);
+    const [weather,setWeather] = useState<WeatherResponse>(props.weather);
 
     const [latitude,setLatitude]=useState<string>(props.latitude.toString());
     const [longitude,setLongitude]=useState<string>(props.longitude.toString());
 
+    const [loadWeatherAsync, isLoadingWeather] = useServerAction(GetWeather);
 
+    const loadWeatherDelay = useRef(ResettableTimer()).current;
 
-    //sidtodo loading.
+    if(isLoadingWeather)
+        return <div>Loading</div>;
+
+    const temperatureData=ConvertTemperatureToChartData(weather.temperaturePerHourOver24HourPeriod);
+
+    const loadWeatherWithDelay = (latitude: number, longitude: number) => {
+        loadWeatherDelay(() => {
+            loadWeatherAsync({latitude: latitude, longitude: longitude, cache: false}).then((res: unknown) => {
+                setWeather(res as WeatherResponse);
+            });
+        },1000);
+    };
 
     const onLatitudeChange = (event: ChangeEvent<HTMLInputElement>) => {
         setLatitude(event.target.value);
         const parsedLatitude=parseFloat(event.target.value);
         const parsedLongitude=parseFloat(longitude);
-        if(!isNaN(parsedLatitude) && !isNaN(parsedLongitude))
-            loadWeather(parsedLatitude,parsedLongitude);
+        if(!isNaN(parsedLatitude) && !isNaN(parsedLongitude)) {
+            loadWeatherWithDelay(parsedLatitude,parsedLongitude);
+        }
     }
 
     const onLongitudeChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -76,18 +51,18 @@ export const Weather = (props: WeatherProps) => {
         const parsedLongitude=parseFloat(event.target.value);
         const parsedLatitude=parseFloat(latitude);
         if(!isNaN(parsedLatitude) && !isNaN(parsedLongitude))
-            loadWeather(parsedLatitude,parsedLongitude);
+            loadWeatherWithDelay(parsedLatitude,parsedLongitude);
     }
 
     return (
         <div>
             <div>Show the weather at the following location:</div>
-            <div className="mb-[3]">
-                <div className={"inline-block w-[100]"}>Latitude</div>
-                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLatitudeChange} value={latitude}/>
+            <div className="mb-[3px]">
+                <div className={"inline-block w-[100px]"}>Latitude</div>
+                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLatitudeChange} value={latitude} />
             </div>
             <div>
-                <div className={"inline-block w-[100]"}>Longitude</div>
+                <div className={"inline-block w-[100px]"}>Longitude</div>
                 <input className="border-[1px] border-gray-300" type={"number"} onChange={onLongitudeChange} value={longitude}/>
             </div>
             <br />
@@ -127,7 +102,6 @@ export const Weather = (props: WeatherProps) => {
         </div>
     );
 }
-
 const ConvertTemperatureToChartData = (temperaturePerHourOver24HourPeriod: number[]) => {
 
     return temperaturePerHourOver24HourPeriod.map((iterTemp, i) => {
@@ -173,11 +147,11 @@ const WindLineChart = (props: WindLineChartProps) => {
 
 
     return (
-        <div className={"w-full h-[400] relative"}>
+        <div className={"w-full h-[400px] relative"}>
             <div id={"outline"}>
-                <div className={"absolute h-[2] bg-red-500"} style={{width: width + "px", top: height + "px"}}></div>
-                <div className={"absolute w-[2] bg-red-500"} style={{height: height + "px"}}/>
-                <div className={"absolute w-[2] bg-red-500"}
+                <div className={"absolute h-[2px] bg-red-500"} style={{width: width + "px", top: height + "px"}}></div>
+                <div className={"absolute w-[2px] bg-red-500"} style={{height: height + "px"}}/>
+                <div className={"absolute w-[2px] bg-red-500"}
                      style={{height: height + "px", left: `calc(${width}px - 2px)`}}/>
             </div>
             <div id={"cross-list"}>
@@ -259,20 +233,13 @@ const WindChartCrossList = (coords: Point[]) => {
 
         return (
             <Fragment key={i}>
-                {/*
-                <div className={`absolute bg-red-500 h-[4] w-[4]`}
-                     style={{
-                         left: `calc(${iterCoord.x}px - 2px)`,
-                         bottom: `calc(${iterCoord.y}px - 2px)`,
-                     }}></div>*/}
-
-                <div className={`absolute bg-blue-500 h-[1] rotate-45 z-40`}
+                <div className={`absolute bg-blue-500 h-[1px] rotate-45 z-40`}
                      style={{
                          left: left + "px",
                          bottom: `calc(${iterCoord.y}px - ${crossThickness / 2}px)`,
                          width: crossLength
                      }}></div>
-                <div className={`absolute bg-blue-500 h-[1] -rotate-45 z-40`}
+                <div className={`absolute bg-blue-500 h-[1px] -rotate-45 z-40`}
                      style={{
                          left: left + "px",
                          bottom: `calc(${iterCoord.y}px - ${crossThickness / 2}px)`,
@@ -308,7 +275,7 @@ const WindChartConnectingLines = (coords: Point[]) => {
 
             lines.push((
                 <div key={i}
-                    className={"p-0 m-0 bg-amber-500 leading-[1] absolute z-10"}
+                    className={"p-0 m-0 bg-amber-500 leading-[1px] absolute z-10"}
                     style={{height: thickness + "px", left: cx + "px", bottom:cy + "px",width:length + "px",transform:"rotate(" + -angle + "deg)"}}
                 />
             ));
@@ -322,9 +289,9 @@ const WindChartXAxis = (coords: Point[], chartHeight: number) => {
     const timesList = coords.map((iterCoord, i) => {
         return (
             <Fragment key={i}>
-                <div className={`absolute bg-red-500 w-[1] h-[6]`}
+                <div className={`absolute bg-red-500 w-[1px] h-[6px]`}
                      style={{left: `calc(${iterCoord.x}px - 0.5px)`, top: chartHeight + "px"}}>
-                    <div className={"pt-[4] flex justify-center"} style={{fontSize: "10px", textAlign: "center"}}
+                    <div className={"pt-[4px] flex justify-center"} style={{fontSize: "10px", textAlign: "center"}}
                     >
                         {i.toString().padStart(2, "0")}
                     </div>
@@ -364,10 +331,10 @@ const WindChartYAxisAndLines = (height: number, yTickerHeight: number, numberOfY
 
         lines.push((
             <Fragment key={i}>
-                <div className={"absolute w-[4] h-[1] bg-red-600"} style={{
+                <div className={"absolute w-[4px] h-[1px] bg-red-600"} style={{
                     left: "-4px", bottom: `calc(${percentageUp * height}px - 1px)`
                 }}>
-                    <div className={"-mt-[7] -ml-[16] flex justify-center left-2"}
+                    <div className={"-mt-[7px] -ml-[16px] flex justify-center left-2"}
                          style={{fontSize: "10px", textAlign: "center"}}
                     >
                         {(i * yTickerHeight) + minY}
@@ -388,7 +355,7 @@ const WindChartYAxisAndLines = (height: number, yTickerHeight: number, numberOfY
 const XAxisText = () => {
 
     return (
-        <div id={"x-axis-text"} className={"absolute flex justify-center -bottom-[40] left-[125]"} style={{
+        <div id={"x-axis-text"} className={"absolute flex justify-center -bottom-[40px] left-[125px]"} style={{
             textAlign: "center"
         }}>
             Time (24 hour)
@@ -399,7 +366,7 @@ const XAxisText = () => {
 const YAxisText = (height: number) => {
 
     return (
-        <div id={"y-axis-text"} className={"absolute -rotate-90 flex justify-center -left-[100]"} style={{
+        <div id={"y-axis-text"} className={"absolute -rotate-90 flex justify-center -left-[100px]"} style={{
             top: `${height / 2}px`
         }}>
             Wind Speed (KM/H)
