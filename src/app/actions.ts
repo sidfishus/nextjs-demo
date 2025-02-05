@@ -5,13 +5,16 @@
 
 import {WeatherResponse} from "@/app/model/WeatherResponse";
 
-export const GetWeather = async ({latitude, longitude, cache} : {latitude: number, longitude: number, cache: boolean}) => {
+export const GetWeather = async ({latitude, longitude, cache} : {latitude: number, longitude: number, cache: boolean})
+    : Promise<WeatherResponse> => {
 
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,wind_speed_10m&forecast_days=1`;
 
     // There's no point caching the weather for the many long / lat user entered values
+
+    //sidtodo change to longer value.
     const fetchProps = cache
-        ? { next: { revalidate: 20 } }
+        ? { next: { revalidate: 10 } }
         : { next: { cache: "no-cache" } };
 
     const res=await fetch(url, fetchProps);
@@ -22,6 +25,7 @@ export const GetWeather = async ({latitude, longitude, cache} : {latitude: numbe
     const response:WeatherResponse={
         temperaturePerHourOver24HourPeriod: dataRaw.hourly.temperature_2m,
         windSpeedPerHourOver24HourPeriod: dataRaw.hourly.wind_speed_10m,
+        generationTimeMs: dataRaw.generationtime_ms
     }
 
     console.log(response);

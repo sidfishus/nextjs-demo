@@ -59,13 +59,15 @@ export const HomeClient = (props: HomeProps) => {
             <div>Show the weather at the following location:</div>
             <div className="mb-[3px]">
                 <div className={"inline-block w-[100px]"}>Latitude</div>
-                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLatitudeChange} value={latitude} />
+                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLatitudeChange}
+                       value={latitude}/>
             </div>
             <div>
                 <div className={"inline-block w-[100px]"}>Longitude</div>
-                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLongitudeChange} value={longitude}/>
+                <input className="border-[1px] border-gray-300" type={"number"} onChange={onLongitudeChange}
+                       value={longitude}/>
             </div>
-            <br />
+            <br/>
 
             <ResponsiveContainer width="100%" height={300}>
                 <AreaChart
@@ -99,6 +101,8 @@ export const HomeClient = (props: HomeProps) => {
                                height={400} minY={0} width={340} numberOfYTicks={4}
                 />
             </div>
+
+            <div className={"pt-16"}>Time to generate weather on the server: {weather.generationTimeMs}ms</div>
         </div>
     );
 }
